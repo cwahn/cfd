@@ -1,6 +1,7 @@
 from abc import *
 from copy import deepcopy
 from functools import partial
+from math import isnan
 from time import sleep
 from typing import Callable, List, Tuple
 
