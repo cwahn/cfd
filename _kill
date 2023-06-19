@@ -1,0 +1,1 @@
+docker exec -w /home/openfoam/ b6c1259eddb5 bash -c "pkill bash*" 
