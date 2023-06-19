@@ -101,8 +101,8 @@ def clear_case(c: Config):
             # print("Removing polyMesh")
             rmtree(path.join(c.local_case_dir_path, "constant/polyMesh"))
 
-    if path.isfile(c.local_script_file_path):
-        remove(c.local_script_file_path)
+    # if path.isfile(c.local_script_file_path):
+    #     remove(c.local_script_file_path)
 
 
 def get_multi(data: Any, keys: List[Any]) -> Any:
@@ -146,7 +146,7 @@ def time_process(cmd: List[str]) -> Optional[Tuple[int, float]]:
 
 
 def run_openfoam_docker(c: Config):
-    run(["docker", "run", "--rm", "-itd", "-u", "1", f"--volume={c.local_volum_path}:{c.container_mount_path}", f"{c.open_foam_img}"])
+    run(["docker", "run", "--rm", "-itd", "-u", "1000", f"--volume={c.local_volum_path}:{c.container_mount_path}", f"{c.open_foam_img}"])
 
 
 def assert_docker_id(c: Config) -> str:
@@ -174,10 +174,10 @@ def write_foam_run(c: Config):
         "reconstructPar >> ./log;" 
     ]
 
-    with open(c.local_script_file_path, "w") as f:
-        f.writelines(map(lambda l: l+"\n", lines))
+    # with open(c.local_script_file_path, "w") as f:
+    #     f.writelines(map(lambda l: l+"\n", lines))
 
-    chmod(c.local_script_file_path, 777)
+    # chmod(c.local_script_file_path, 777)
 
 def run_all(c: Config, timeout_s=int) -> Optional[float]:
     docker_id = assert_docker_id(c)
