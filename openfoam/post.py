@@ -45,15 +45,43 @@ def grid_from_bbox(b_box: BoundingBox, grid_size: float) -> StructuredGrid:
 
     return StructuredGrid(xs, ys, zs)
 
+def grid_from_bbox_even(b_box: BoundingBox, grid_size: float) -> StructuredGrid:
+    xn = arange(-grid_size/2, b_box[0], -grid_size)
+    xp = arange(grid_size/2, b_box[1], grid_size)
+    x = concatenate([xn, xp])
+
+    yn = arange(-grid_size/2, b_box[2], -grid_size)
+    yp = arange(grid_size/2, b_box[3], grid_size)
+    y = concatenate([yn, yp])
+
+    zn = arange(-grid_size/2, b_box[4], -grid_size)
+    zp = arange(grid_size/2, b_box[5], grid_size)
+    z = concatenate([zn, zp])
+
+    xs, ys, zs = meshgrid(x, y, z)
+
+    return StructuredGrid(xs, ys, zs)
 
 
-def spatial_sample(path: str, b_box: BoundingBox, grid_size: float) -> StructuredGrid:
+
+def spatial_sample_case(path: str, b_box: BoundingBox, grid_size: float) -> StructuredGrid:
     meshes = read_case_last(path)
     internal_mesh: UnstructuredGrid = meshes["internalMesh"]
     
     # Can't trust this. Use orinal b_box
     # b_box = get_bbox(internal_mesh) 
     grid = grid_from_bbox(b_box, grid_size)
+    sampled = grid.interpolate(internal_mesh)
+
+    return sampled
+
+def spatial_sample_case_even(path: str, b_box: BoundingBox, grid_size: float) -> StructuredGrid:
+    meshes = read_case_last(path)
+    internal_mesh: UnstructuredGrid = meshes["internalMesh"]
+    
+    # Can't trust this. Use orinal b_box
+    # b_box = get_bbox(internal_mesh) 
+    grid = grid_from_bbox_even(b_box, grid_size)
     sampled = grid.interpolate(internal_mesh)
 
     return sampled

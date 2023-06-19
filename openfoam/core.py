@@ -174,8 +174,8 @@ def write_foam_run(c: Config):
         "reconstructPar >> ./log;" 
     ]
 
-    # with open(c.local_script_file_path, "w") as f:
-    #     f.writelines(map(lambda l: l+"\n", lines))
+    with open(c.local_script_file_path, "w") as f:
+        f.writelines(map(lambda l: l+"\n", lines))
 
     # chmod(c.local_script_file_path, 777)
 
