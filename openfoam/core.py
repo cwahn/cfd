@@ -219,7 +219,7 @@ def run_all(c: Config, timeout_s=int) -> Optional[float]:
         # '"pwd"'
         ]
 
-    print("cmd: ", " ".join(cmd))
+    # print("cmd: ", " ".join(cmd))
 
     result = time_process(cmd)
     
