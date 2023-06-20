@@ -104,6 +104,29 @@ def clear_case(c: Config):
     # if path.isfile(c.local_script_file_path):
     #     remove(c.local_script_file_path)
 
+def clear_case_except_mesh(c: Config):
+    contents = listdir(c.local_case_dir_path)
+
+    numeric_dirs = list(filter(is_numeric_dir_name, contents))
+    time_dirs =  deepcopy(numeric_dirs)
+    if "0" in time_dirs:
+        time_dirs.remove("0")
+    
+    proc_dirs = list(filter(is_processor_dir_name, contents))
+    
+    log_files = list(filter(lambda s: is_exact_file_name(s, "log"), contents))
+
+    time_dir_paths = list(map(lambda x: path.join(c.local_case_dir_path, x), time_dirs))
+    proc_dir_paths = list(map(lambda x: path.join(c.local_case_dir_path, x), proc_dirs))
+    log_file_paths = list(map(lambda x: path.join(c.local_case_dir_path, x), log_files))
+
+    consume(side_effect(rmtree, time_dir_paths))
+    consume(side_effect(rmtree, proc_dir_paths))
+    consume(side_effect(remove, log_file_paths))
+
+    # if path.isfile(c.local_script_file_path):
+    #     remove(c.local_script_file_path)
+
 
 def get_multi(data: Any, keys: List[Any]) -> Any:
     return reduce(lambda data, key: data[key], keys, data)
@@ -180,25 +203,58 @@ def write_foam_run(c: Config):
 
     # chmod(c.local_script_file_path, 777)
 
-def run_all(c: Config, timeout_s=int) -> Optional[float]:
-    # docker_id = assert_docker_id(c)
-    foam_app = get_foam_app(c.local_case_dir_path)
-    _ = write_foam_run(c)
+def write_foam_no_mesh_run(c: Config):
+    lines = [
+        r"#!/bin/bash",
+        f"cd {c.container_case_dir_path};",
+        f"decomposePar >> {c.container_log_file_path};",
+        f"mpirun -np {c.num_proc} simpleFoam -parallel >> {c.container_log_file_path};",
+        f"reconstructPar >> {c.container_log_file_path};" 
+    ]
 
-    # cmd = [
-    #     "docker",
-    #     # "exec",
-    #     "run",
-    #     "-w",
-    #     c.container_case_dir_path,
-    #     # docker_id,
-    #     c.open_foam_img,
-    #     "timeout",
-    #     f"{timeout_s}",
-    #     "bash",
-    #     "-lc",
-    #     f'"./{c.script_file_name}"'
-    # ]
+    with open(c.local_script_file_path, "w") as f:
+        f.writelines(map(lambda l: l+"\n", lines))
+
+    # chmod(c.local_script_file_path, 777)
+
+def run_all(c: Config, timeout_s: int) -> Optional[float]:
+    # docker_id = assert_docker_id(c)
+    write_foam_run(c)
+
+    cmd = [
+        "docker", 
+        "run", 
+        "--rm", 
+        # "-itd", 
+        "-u", 
+        "1000", 
+        f"--volume={c.local_volum_path}:{c.container_mount_path}", 
+        # "-w",
+        # c.container_case_dir_path,
+        f"{c.open_foam_img}",
+        "timeout",
+        f"{timeout_s}",
+        "bash",
+        "-lc",
+        f'"{c.container_script_file_path}"'
+        # '"pwd"'
+        ]
+
+    # print("cmd: ", " ".join(cmd))
+
+    result = time_process(cmd)
+    
+    if result != None:
+        if result[0] == 0:
+            return result[1]
+        else:
+            return None
+    else:
+        return None
+    
+def run_no_meshing(c: Config, timeout_s: int) -> Optional[float]:
+    # docker_id = assert_docker_id(c)
+    write_foam_no_mesh_run(c)
 
     cmd = [
         "docker", 
@@ -239,6 +295,20 @@ def run_case(c: Config, entries: List[Tuple[str, List[str], Any]], timeout_s: in
     set_case(c, entries)
     
     res = run_all(c, timeout_s)
+
+    if res != None:
+        return (c.local_case_dir_path, res)
+    else:
+        return None
+    
+    
+def run_case_no_meshing(c: Config, entries: List[Tuple[str, List[str], Any]], timeout_s: int) -> Optional[Tuple[str, float]]:
+    
+    clear_case_except_mesh(c)
+    
+    set_case(c, entries)
+    
+    res = run_no_meshing(c, timeout_s)
 
     if res != None:
         return (c.local_case_dir_path, res)

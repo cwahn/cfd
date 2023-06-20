@@ -1,3 +1,11 @@
+from copy import deepcopy
+from math import isnan, sqrt
+from os import path
+from typing import List
+from openfoam.core import run_case
+
+from openfoam.optimizer import T, last
+from openfoam.post import rms_of_sampled
 from openfoam.post import spatial_sample_case_even
 from openfoam.graph import to_csv
 from openfoam.core import configure
@@ -41,15 +49,6 @@ c = configure(
 print(c)
 
 # maxCellSize, boundaryCellSize, localRefCellSize, residualP, residualOthers
-
-from copy import deepcopy
-from math import isnan, sqrt
-from os import path
-from typing import List
-from openfoam.core import run_case
-
-from openfoam.optimizer import T, last
-from openfoam.post import rms_of_sampled
 
 FLOAT_MACHINE_EPSILON = 2.22e-16
 FLOAT_EPSILON = sqrt(FLOAT_MACHINE_EPSILON)
