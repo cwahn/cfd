@@ -168,10 +168,11 @@ def get_foam_app(case_path: str) -> str:
 def write_foam_run(c: Config):
     lines = [
         r"#!/bin/bash",
-        "cartesianMesh >> ./log;",
-        "decomposePar >> ./log;",
-        f"mpirun -np {c.num_proc} simpleFoam -parallel >> ./log;",
-        "reconstructPar >> ./log;" 
+        f"cd {c.container_case_dir_path};",
+        f"cartesianMesh >> {c.container_log_file_path};",
+        f"decomposePar >> {c.container_log_file_path};",
+        f"mpirun -np {c.num_proc} simpleFoam -parallel >> {c.container_log_file_path};",
+        f"reconstructPar >> {c.container_log_file_path};" 
     ]
 
     with open(c.local_script_file_path, "w") as f:
@@ -180,22 +181,45 @@ def write_foam_run(c: Config):
     # chmod(c.local_script_file_path, 777)
 
 def run_all(c: Config, timeout_s=int) -> Optional[float]:
-    docker_id = assert_docker_id(c)
+    # docker_id = assert_docker_id(c)
     foam_app = get_foam_app(c.local_case_dir_path)
     _ = write_foam_run(c)
 
+    # cmd = [
+    #     "docker",
+    #     # "exec",
+    #     "run",
+    #     "-w",
+    #     c.container_case_dir_path,
+    #     # docker_id,
+    #     c.open_foam_img,
+    #     "timeout",
+    #     f"{timeout_s}",
+    #     "bash",
+    #     "-lc",
+    #     f'"./{c.script_file_name}"'
+    # ]
+
     cmd = [
-        "docker",
-        "exec",
-        "-w",
-        c.container_case_dir_path,
-        docker_id,
+        "docker", 
+        "run", 
+        "--rm", 
+        # "-itd", 
+        "-u", 
+        "1000", 
+        f"--volume={c.local_volum_path}:{c.container_mount_path}", 
+        # "-w",
+        # c.container_case_dir_path,
+        f"{c.open_foam_img}",
         "timeout",
         f"{timeout_s}",
         "bash",
         "-lc",
-        f'"./{c.script_file_name}"'
-    ]
+        f'"{c.container_script_file_path}"'
+        # '"pwd"'
+        ]
+
+    print("cmd: ", " ".join(cmd))
 
     result = time_process(cmd)
     
