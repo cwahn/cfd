@@ -10,7 +10,7 @@ from time import sleep
 from typing import List, Tuple
 from openfoam.core import Config, configure, run_all, run_case, run_case_no_meshing, run_no_meshing, set_case
 from openfoam.mesh import BoundingBox
-from openfoam.post import spatial_sample_case_even
+from openfoam.post import post_process, spatial_sample_case_even
 import numpy as np
 from openfoam.prep import StlFace, get_boolean_boxed, is_same_surf, parse_stl_file, partition, save_stl
 from prep.src import read_stl
@@ -170,17 +170,9 @@ def process_x_once(c: Config, rel_case_shape_path: str, local_output_dir_path: s
     copy2(abs_shape_path, local_output_dir_path)
     
     
-def process_y(result_path: str, b_box: BoundingBox, grid_size: float) -> np.array:
-    foam_path = path.join(result_path, "open.foam")
-    print(foam_path)
-    sampled = spatial_sample_case_even(foam_path, b_box, grid_size)
-    u = sampled["U"]
-    p = sampled["p"].reshape(-1, 1)
-    k = sampled["k"].reshape(-1, 1)
-
-    res = np.hstack([u, p, k]).reshape(256,128,256,5)
-
-    print(res.shape)
+def process_y(case_path: str, b_box: BoundingBox, grid_size: float) -> np.array:
+    foam_path = path.join(case_path, "open.foam")
+    res = post_process(foam_path, b_box, grid_size)
     return res
 
 def write_data(x, y, write_path: str):
@@ -227,6 +219,4 @@ def gen_data(c: Config):
 
             write_path = path.join(local_output_dir_path, f"{speed}-" + get_file_name(case_rel_shape_path))
 
-            write_data(x, y, write_path)
-
-            
+            write_data(x, y, write_path.replace(".stl", ".data0"))
