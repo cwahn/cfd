@@ -8,6 +8,7 @@ from re import findall
 from shutil import copy2
 from time import sleep
 from typing import List, Tuple
+
 from openfoam.core import Config, configure, run_all, run_case, run_case_no_meshing, run_no_meshing, set_case
 from openfoam.mesh import BoundingBox
 from openfoam.post import post_process, spatial_sample_case_even
@@ -21,9 +22,10 @@ from prep.src import read_stl
 # RESIDUAL_P = 0.544521855
 # RESIDUAL_OTHERS = 0.042843653
 
-MAX_CELL_SIZE = 100
-BOUNDARY_CELL_SIZE = 52
-LOCAL_REF_CELL_SIZE = 10.5
+MAX_CELL_SIZE = 102
+BOUNDARY_CELL_SIZE = 30
+LOCAL_REF_CELL_SIZE = 5
+
 RESIDUAL_P = 0.5
 RESIDUAL_OTHERS = 0.04
 
@@ -190,15 +192,23 @@ def prepare_output_dir(c: Config, i: int) -> str:
 
     return write_dir_path
 
-def change_param():
+def is_calculated(write_path: str):
+    return path.exists(write_path)
+
+def temp_change_param():
+    global MAX_CELL_SIZE
+    global BOUNDARY_CELL_SIZE
+    global LOCAL_REF_CELL_SIZE
+
     MAX_CELL_SIZE = MAX_CELL_SIZE * random.uniform(0.9, 1.1)
     BOUNDARY_CELL_SIZE = BOUNDARY_CELL_SIZE * random.uniform(0.9, 1.1)
     LOCAL_REF_CELL_SIZE =  LOCAL_REF_CELL_SIZE * random.uniform(0.9, 1.1)
 
-def data_gen_run(c: Config, case_rel_shape_path, speed, timeout: float, j: int) -> (Tuple[str, float] | None):
+
+def data_gen_run(c: Config, case_rel_shape_path, speed, timeout: float, j: int, is_first: bool) -> (Tuple[str, float] | None):
     entries = get_entries(c, case_rel_shape_path, speed)
 
-    if j == 0:
+    if is_first or j == 0:
         res = run_case(c, entries, 120)
     else:
         res = run_case_no_meshing(c, entries, 120)
@@ -206,13 +216,13 @@ def data_gen_run(c: Config, case_rel_shape_path, speed, timeout: float, j: int) 
     if res == None:
         print("Adjust param and retry")
         
-        change_param()
-        return data_gen_run(c, case_rel_shape_path, speed, timeout, j)
+        temp_change_param()
+        return data_gen_run(c, case_rel_shape_path, speed, timeout, j, True)
 
     return res
 
 
-def gen_data(c: Config):  
+def gen_data(c: Config, is_first: bool):  
 
     path_with_speeds_nums = get_cfd_arg_batches(c)
     
@@ -228,22 +238,16 @@ def gen_data(c: Config):
 
         for j, speed in enumerate(case_rel_path_speeds[1]):
 
-            res = data_gen_run(
-                c,
-                case_rel_shape_path,
-                speed,
-                120,
-                j
-            )
+            write_path = path.join(local_output_dir_path, f"{speed}-" + get_file_name(case_rel_shape_path)).replace(".stl", ".data0")
 
+            if is_calculated(write_path):
+                print(f"Skipping: {write_path}... ")
+                continue
 
-
-            
-
+            data_gen_run(c, case_rel_shape_path, speed, 120, j, is_first)
 
             x = speed
             y = process_y(c.local_case_dir_path, B_BOX, GRID_SIZE)
-
-            write_path = path.join(local_output_dir_path, f"{speed}-" + get_file_name(case_rel_shape_path))
-
-            write_data(x, y, write_path.replace(".stl", ".data0"))
+            
+            is_first = False
+            write_data(x, y, write_path)
