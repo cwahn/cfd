@@ -130,7 +130,6 @@ def opt_run(ts: List[T]) -> float:
         error = error_raw * 10
 
     loss = time * error
-
     
     print(f"Error: {error}, Time: {time}, loss: {loss} \n")
 
