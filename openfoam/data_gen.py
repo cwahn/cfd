@@ -190,6 +190,27 @@ def prepare_output_dir(c: Config, i: int) -> str:
 
     return write_dir_path
 
+def change_param():
+    MAX_CELL_SIZE = MAX_CELL_SIZE * random.uniform(0.9, 1.1)
+    BOUNDARY_CELL_SIZE = BOUNDARY_CELL_SIZE * random.uniform(0.9, 1.1)
+    LOCAL_REF_CELL_SIZE =  LOCAL_REF_CELL_SIZE * random.uniform(0.9, 1.1)
+
+def data_gen_run(c: Config, case_rel_shape_path, speed, timeout: float, j: int) -> (Tuple[str, float] | None):
+    entries = get_entries(c, case_rel_shape_path, speed)
+
+    if j == 0:
+        res = run_case(c, entries, 120)
+    else:
+        res = run_case_no_meshing(c, entries, 120)
+
+    if res == None:
+        print("Adjust param and retry")
+        
+        change_param()
+        return data_gen_run(c, case_rel_shape_path, speed, timeout, j)
+
+    return res
+
 
 def gen_data(c: Config):  
 
@@ -207,12 +228,18 @@ def gen_data(c: Config):
 
         for j, speed in enumerate(case_rel_path_speeds[1]):
 
-            entries = get_entries(c, case_rel_shape_path, speed)
+            res = data_gen_run(
+                c,
+                case_rel_shape_path,
+                speed,
+                120,
+                j
+            )
 
-            if j == 0:
-                run_case(c, entries, 120)
-            else:
-                run_case_no_meshing(c, entries, 120)
+
+
+            
+
 
             x = speed
             y = process_y(c.local_case_dir_path, B_BOX, GRID_SIZE)

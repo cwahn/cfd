@@ -10,8 +10,8 @@ import trimesh
 
 
 # FILE_PATH = "./data/results/windAroundBuildingsOld/open.foam"
-FILE_PATH = "./testCase/open.foam"
-MESH_PATH = "./testCase/constant/triSurface/box-in-box.stl"
+FILE_PATH = "./data/testCase/open.foam"
+MESH_PATH = "./data/testCase/constant/triSurface/box-in-box.stl"
 
 def dot2(x):
     return np.dot(x, x)
@@ -90,7 +90,6 @@ def save_and_rename_bounding_box(
     return  list(y_mins) + list(objects)
 
 
-
 class Dataset:
     def __init__(self,w,h,d,dataset_size):
         """
@@ -99,9 +98,10 @@ class Dataset:
         :images: if type is image, then there are the following possibilities: see img_dict
         """
 
-
-
         b_box = [-1.5, 1.5, 0, 3, -1.5, 1.5]
+
+
+        
         tmp= read_stl(MESH_PATH)
         polymesh = save_and_rename_bounding_box(MESH_PATH, tmp, b_box)
 
@@ -110,7 +110,7 @@ class Dataset:
         self.ref = torch.zeros(dataset_size,5*w*h*d)
 
 
-        amp = spatial_sample_case_even(FILE_PATH, b_box, 0.1875)
+        amp, _ = spatial_sample_case_even(FILE_PATH, b_box, 0.1875)
         U = amp["U"]
         u = np.zeros(shape=(3,16,16,16))
         u[0] = U[:,0].reshape((16, 16, 16))
