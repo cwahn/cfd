@@ -203,6 +203,7 @@ def prepare(
 def get_boolean_boxed(
         object: pv.PolyData,
         b_box: BoundingBox) -> pv.PolyData:
+    
     box = pv.Box((b_box[0], b_box[1], b_box[2], b_box[3],
                   b_box[4], b_box[5])).triangulate()
 
@@ -283,9 +284,7 @@ def parse_stl_file(path: str) -> Iterable[StlFace]:
         stripted = map(lambda l: l.strip(), f)
         lines = map(lambda l: re.sub(" +", " ", l), stripted)
         joined_line = " ".join(lines)
-        print(joined_line)
         matches = re.findall(PATTERN, joined_line)
-        print(matches)
         stl_faces = map(match_to_stl_face, matches)
         return stl_faces
 

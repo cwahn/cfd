@@ -1,4 +1,5 @@
 
+from openfoam.data_gen import gen_data
 from openfoam.core import configure
 
 
@@ -25,3 +26,4 @@ c = configure(
     LOG_FILE_NAME,
 )
 
+gen_data(c)

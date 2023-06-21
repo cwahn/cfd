@@ -1,9 +1,12 @@
 
 from functools import partial
+from genericpath import isdir
 from os import listdir, mkdir, path
 import pickle
 import random
 from re import findall
+from shutil import copy2
+from time import sleep
 from typing import List, Tuple
 from openfoam.core import Config, configure, run_all, run_case, run_case_no_meshing, run_no_meshing, set_case
 from openfoam.mesh import BoundingBox
@@ -12,11 +15,17 @@ import numpy as np
 from openfoam.prep import StlFace, get_boolean_boxed, is_same_surf, parse_stl_file, partition, save_stl
 from prep.src import read_stl
 
-MAX_CELL_SIZE = 97.59472956
-BOUNDARY_CELL_SIZE = 52.8544593
-LOCAL_REF_CELL_SIZE = 10.49705968
-RESIDUAL_P = 0.544521855
-RESIDUAL_OTHERS = 0.042843653
+# MAX_CELL_SIZE = 97.59472956
+# BOUNDARY_CELL_SIZE = 52.8544593
+# LOCAL_REF_CELL_SIZE = 10.49705968
+# RESIDUAL_P = 0.544521855
+# RESIDUAL_OTHERS = 0.042843653
+
+MAX_CELL_SIZE = 100
+BOUNDARY_CELL_SIZE = 52
+LOCAL_REF_CELL_SIZE = 10.5
+RESIDUAL_P = 0.5
+RESIDUAL_OTHERS = 0.04
 
 B_BOX = [-500, 500, 1e-2, 500, -500, 500]
 
@@ -28,27 +37,34 @@ GRID_SIZE = 3.9
 W, H, D = (256, 128, 256)
 RATIO = [LEN_X/W, LEN_Y/H, LEN_Z/D]
 
-# def parse_wind_dir(path: str) -> float:
-#         wind_dir = findall("-([0-9]*\.?[0-9]*).stl")[0]
-#         return wind_dir
+def parse_shape_file_name(shape_file_name: str) -> tuple[int, float, float]:
+    shape_num, rel_rot, wind_rot = findall("^(.*)-.*-(.*)-(.*).stl", shape_file_name)[0]
+    return (int(shape_num), float(rel_rot), float(wind_rot))
 
 def get_cfd_arg_batches(c: Config) -> List[Tuple[str, List[float]]]:
-    local_shape_dir_path = path.join(c.local_volum_path, "constant/triSurface/")
-    # container_shape_dir_path = path.join(c.container_mount_path, "constant/triSurface/")
-    shape_paths = listdir(local_shape_dir_path)
+    local_shape_dir_path = path.join(c.local_case_dir_path, "constant/triSurface/")
+
+    shape_file_names = listdir(local_shape_dir_path)
+
+    case_rel_shape_paths = list(map(lambda x: path.join("constant/triSurface/", x), shape_file_names))
+
+    # print(shape_file_names[0])
+    shape_nums= list(map(lambda f: parse_shape_file_name(f)[0], shape_file_names)) 
+
+    path_shape_num = zip(case_rel_shape_paths, shape_nums)
 
     random.seed(1)
 
     def rands(i: int) -> List[float]:
         return list(map(lambda x: random.uniform(0, 30), [0]*i))
         
-    # wind_dirs = map(parse_wind_dir, shape_paths)
-    path_with_speedss = list(map(lambda p: (p, rands(10)), shape_paths))
-    return path_with_speedss
+    path_with_speeds_nums = list(map(lambda p: (p[0], rands(10), p[1]), path_shape_num))
+    
+    return path_with_speeds_nums
 
 def get_entries(
         c: Config,
-        path: str,
+        case_rel_shape_path: str,
         wind_speed: float,
         # MAX_CELL_SIZE: float,
         # BOUNDARY_CELL_SIZE: float,
@@ -59,7 +75,7 @@ def get_entries(
 
     entries = [
             ("0/U", ["Uinlet"], f"({wind_speed} 0 0)"),
-            ("system/meshDict", ["surfaceFile"], "constant/triSurface/background3.stl"),
+            ("system/meshDict", ["surfaceFile"], case_rel_shape_path),
             ("system/meshDict", ["maxCellSize"], MAX_CELL_SIZE),
             ("system/meshDict", ["boundaryCellSize"], BOUNDARY_CELL_SIZE),
             ("system/meshDict", ["localRefinement", "object.*", "cellSize"], LOCAL_REF_CELL_SIZE),
@@ -111,14 +127,11 @@ def si(p, a, b, c):
 # save_stl 저장 불필요 
 def rename_bounding_box(
         path: str,
-        boxed_object: pv.PolyData,
         b_box: BoundingBox,
 ):
     temp_path = path.replace(".stl", "_.stl")
 
-    save_stl(boxed_object, temp_path)
-
-    stl_faces = parse_stl_file(temp_path)
+    stl_faces = parse_stl_file(path)
 
     x_min_surf = StlFace(
         (-1, 0, 0), ((b_box[0], 0, 0), (b_box[0], 0, 0), (b_box[0], 0, 0)))
@@ -151,43 +164,22 @@ def rename_bounding_box(
 
 
 
-def process_x_once(shape_path: str, b_box: BoundingBox) :
-
-    shape = read_stl(shape_path)
-    boxed_shape = get_boolean_boxed(shape, b_box)
-    polymesh = rename_bounding_box(shape_path, boxed_shape, b_box)
-
-    voxel = np.zeros((1, W, H, D))
+def process_x_once(c: Config, rel_case_shape_path: str, local_output_dir_path: str) :
     
-    #볼셀크기 w h d일때
-    for x in range(W):
-        for y in range(H):
-            for z in range(D):
-    #트라이앵글은 b_box 공간에 있고 복셀은 [0,16] [0,16] [0,16] 에 정의됐으니 x z 만 평행이동해 복셀 중심을 원점으로 옮기고 /16 으로 단위 크기로 만들고 *3.0으로 트라이앵글 공간으로
-                P_voxel = np.array([x-W/2, y, z-D/2])*np.array(RATIO)
-                dist = 1e+9
-                pt = None
-    #가장 작
-                for po in polymesh:
-    #sdf_triangle가 복셀 좌표 P_voxel과 어떤 트라이앨글과 최단거리 반환,  루프돌면 가장 가까운거리 나옴. 
-                    t = sdf_triangle(P_voxel, po.points[0], po.points[1], po.points[2])
-                    if t < dist:
-                        dist = t
-                        pt = po
-    # 가장 가까운거리를 실제 복셀데이터로. 부호를 si함수로 보정
-                voxel[0][x][y][z] = dist * si(P_voxel, pt.points[0], pt.points[1], pt.points[2])
-
-    return voxel
+    abs_shape_path = path.join(c.local_case_dir_path, rel_case_shape_path)
+    copy2(abs_shape_path, local_output_dir_path)
     
-
-def process_y(path: str, b_box: BoundingBox, grid_size: float) -> np.array:
-    sampled = spatial_sample_case_even(path, b_box, grid_size)
+    
+def process_y(result_path: str, b_box: BoundingBox, grid_size: float) -> np.array:
+    foam_path = path.join(result_path, "open.foam")
+    print(foam_path)
+    sampled = spatial_sample_case_even(foam_path, b_box, grid_size)
     u = sampled["U"]
     p = sampled["p"].reshape(-1, 1)
     k = sampled["k"].reshape(-1, 1)
 
-
     res = np.hstack([u, p, k]).reshape(256,128,256,5)
+
     print(res.shape)
     return res
 
@@ -195,39 +187,46 @@ def write_data(x, y, write_path: str):
     with open(write_path,"wb") as fw:
         pickle.dump((x, y), fw)
 
-def get_file_name(path: str) -> str:
-    return path.basename(path).split('/')[-1]
+def get_file_name(file_path: str) -> str:
+    return path.basename(file_path).split('/')[-1]
+
+def prepare_output_dir(c: Config, i: int) -> str:
+    write_dir_path = path.join(c.local_case_dir_path, f"output{i}/")
+
+    if not isdir(write_dir_path):
+        mkdir(write_dir_path)
+
+    return write_dir_path
 
 
 def gen_data(c: Config):  
 
-    write_dir_path = path.join(c.local_case_dir_path, f"{i}/")
-    mkdir(write_dir_path)
-
-    path_with_speedss = get_cfd_arg_batches(c)
+    path_with_speeds_nums = get_cfd_arg_batches(c)
     
-    for i, path_speeds in enumerate(path_with_speedss):
+    for i, case_rel_path_speeds in enumerate(path_with_speeds_nums):
 
-        path = path_speeds[0]
-        voxel = process_x_once()
+        print("Processing shape ", i)
 
-        for j, speed in enumerate(path_speeds[1]):
+        case_rel_shape_path = case_rel_path_speeds[0]
 
-            entries = get_entries(c, path, speed)
+        local_output_dir_path = prepare_output_dir(c, case_rel_path_speeds[2])   
+
+        process_x_once(c, case_rel_shape_path, local_output_dir_path)
+
+        for j, speed in enumerate(case_rel_path_speeds[1]):
+
+            entries = get_entries(c, case_rel_shape_path, speed)
 
             if j == 0:
                 run_case(c, entries, 120)
             else:
                 run_case_no_meshing(c, entries, 120)
 
-            x = (speed, voxel)
-            y = process_y(path, B_BOX, GRID_SIZE)
+            x = speed
+            y = process_y(c.local_case_dir_path, B_BOX, GRID_SIZE)
 
-            write_path = path.join(write_dir_path, f"{speed}-" + get_file_name(path))
+            write_path = path.join(local_output_dir_path, f"{speed}-" + get_file_name(case_rel_shape_path))
 
             write_data(x, y, write_path)
 
             
-
-
-

@@ -5,9 +5,9 @@ from random import Random, uniform
 
 from openfoam.mesh import prepare_mesh, read_mesh
 
-BACKGROUND_PATH = "./data/marine-city-3.obj"
+BACKGROUND_PATH = "./data/marine-city-4.obj"
 DESIGNS_DIR = "./data/designs/"
-OUTPUT_DIR = "./data/output/meshes/"
+OUTPUT_DIR = "./data/outputs/meshes/"
 
 design_file_names = listdir(DESIGNS_DIR)
 design_paths = list(map(lambda f: path.join(DESIGNS_DIR, f), design_file_names))
@@ -21,7 +21,7 @@ max_rotation_repeats = map(lambda f: [f]*3, max_rotations)
 
 rotationss = map(lambda rs: list(map(random, rs)), max_rotation_repeats)
 
-wind_dir_maxss =  map(lambda a: [a] * 36, [360] * 10)
+wind_dir_maxss =  map(lambda a: [a] * 3, [360] * 10)
 
 wind_dirss = map(lambda ms: list(map(lambda m: random(m), ms)), wind_dir_maxss)
 
